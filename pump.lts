@@ -16,10 +16,10 @@
 // animation of this model.
 //
 menu UserControlMenu = {
-    change_settings, clear_rate, confirm_settings, connect_set,
+    change_settings, clear_rate, confirm_settings, connect_set, set_time,
     dispense_main_med_flow, enter_value, erase_and_unlock_line,
     flow_unblocked, sound_alarm, lock_unit, plug_in, press_cancel, 
-    press_set, set_rate, silence_alarm, turn_off, unlock_unit, unplug,
+    press_set, set_rate, silence_alarm, turn_off, unlock_unit, unplug, time_off,
     flow_blocked
 }
 
@@ -127,7 +127,7 @@ SETUP[params:ParamsStateT][lineLock:LineLockStateT] =
         clear_rate -> SETUP[ParamsNotSet][lineLock]
     |
     when (params == ParamsSet && lineLock == LineUnlocked)
-        connect_set -> purge_air -> lock_line -> SETUP[params][LineLocked]
+        connect_set -> set_time-> purge_air -> lock_line -> SETUP[params][LineLocked]
     |
     when (lineLock == LineLocked)
         confirm_settings -> INFUSION[UnitUnlocked][SystemCheckRequired]
@@ -147,6 +147,8 @@ INFUSION[unitLock:UnitLockStateT][systemCheck:SystemCheckStateT] =
 (
 	unplug -> UNPLUGGED
 	|
+    time_off -> POWER_OFF
+    |
 	when (systemCheck == SystemCheckRequired)
 		do_system_check -> PERIODIC_SYSTEM_CHECK[unitLock]
 	|
