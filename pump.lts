@@ -16,10 +16,10 @@
 // animation of this model.
 //
 menu UserControlMenu = {
-    change_settings, clear_rate, confirm_settings, connect_set, set_time
+    change_settings, clear_rate, confirm_settings, connect_set, set_time,
     dispense_main_med_flow, enter_value, erase_and_unlock_line,
     flow_unblocked, sound_alarm, lock_unit, plug_in, press_cancel, 
-    press_set, set_rate, silence_alarm, turn_off, unlock_unit, unplug,
+    press_set, set_rate, silence_alarm, turn_off, unlock_unit, unplug, time_off,
     flow_blocked
 }
 
