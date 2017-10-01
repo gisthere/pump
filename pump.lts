@@ -1,3 +1,4 @@
+
 //
 // 17-651: FSP model of a simple infusion pump
 //
@@ -20,7 +21,7 @@ menu UserControlMenu = {
     dispense_main_med_flow, enter_value, erase_and_unlock_line,
     flow_unblocked, sound_alarm, lock_unit, press_cancel, time_off,
     press_set, set_rate, silence_alarm, turn_off, unlock_unit, primary_power_off,
-    flow_blocked, setup_mode
+    flow_blocked, setup_mode, pressure_is_ok
 }
 
 //======================
@@ -63,6 +64,14 @@ const SystemCheckRequired      = 8  //
 const SystemCheckNotRequired   = 9  //
 
 range SystemCheckStateT = SystemCheckRequired .. SystemCheckNotRequired
+
+//
+// Pressure is fine or not
+//
+const PressureIsNotOk = 10  // pressure in the pump is not ok
+const PressureIsOk   = 11  // pressure in the pump is ok
+
+range PressureStateT = PressureIsNotOk .. PressureIsOk
 
 //=====================
 // Process Definitions
@@ -110,7 +119,9 @@ SETUP_MODE = (
     |
     turn_off -> POWER_OFF
     |
-    setup_mode -> SETUP[ParamsNotSet][LineUnlocked]
+    setup_mode -> SETUP[ParamsNotSet][LineUnlocked][PressureIsNotOk]
+    |
+    setup_mode -> SETUP[ParamsNotSet][LineUnlocked][PressureIsOk]
 ),
 
 //
@@ -118,7 +129,7 @@ SETUP_MODE = (
 // - Once required pump parameters (just rate in this case) are set,
 //   physical connections can be made and line can be locked
 //
-SETUP[params:ParamsStateT][lineLock:LineLockStateT] = 
+SETUP[params:ParamsStateT][lineLock:LineLockStateT][pressure:PressureStateT] = 
 (
     primary_power_off -> BATTERY_MODE[AlarmActivated]
     |
@@ -126,21 +137,24 @@ SETUP[params:ParamsStateT][lineLock:LineLockStateT] =
     |
     when (params == ParamsNotSet && lineLock == LineUnlocked)
         set_rate -> enter_value ->
-            (press_set -> SETUP[ParamsSet][lineLock]
+            (press_set -> SETUP[ParamsSet][lineLock][pressure]
              |
-             press_cancel -> SETUP[ParamsNotSet][lineLock])
+             press_cancel -> SETUP[ParamsNotSet][lineLock][pressure])
     |
     when (params == ParamsSet && lineLock == LineUnlocked)
-        clear_rate -> SETUP[ParamsNotSet][lineLock]
+        clear_rate -> SETUP[ParamsNotSet][lineLock][pressure]
     |
     when (params == ParamsSet && lineLock == LineUnlocked)
-        connect_set -> set_time-> purge_air -> lock_line -> SETUP[params][LineLocked]
+        connect_set -> set_time-> purge_air -> lock_line -> SETUP[params][LineLocked][pressure]
+    |
+    when (lineLock == LineLocked && pressure == PressureIsNotOk)
+        confirm_settings -> PRESSURE_CHECK[AlarmActivated]
+    |
+    when (lineLock == LineLocked && pressure == PressureIsOk)
+        confirm_settings -> PRESSURE_CHECK[AlarmSilenced]
     |
     when (lineLock == LineLocked)
-        confirm_settings -> INFUSION[UnitUnlocked][SystemCheckRequired]
-    |
-    when (lineLock == LineLocked)
-        erase_and_unlock_line -> SETUP[params][LineUnlocked]
+        erase_and_unlock_line -> SETUP[params][LineUnlocked][pressure]
 ),
 
 //
@@ -163,7 +177,7 @@ INFUSION[unitLock:UnitLockStateT][systemCheck:SystemCheckStateT] =
 		turn_off -> POWER_OFF
     |
 	when (unitLock == UnitUnlocked & systemCheck == SystemCheckNotRequired)
-    	change_settings -> SETUP[ParamsSet][LineLocked]
+    	change_settings -> SETUP[ParamsSet][LineLocked][PressureIsOk]
     |
     when (unitLock == UnitUnlocked & systemCheck == SystemCheckNotRequired)
       	lock_unit -> INFUSION[UnitLocked][SystemCheckRequired]
@@ -205,6 +219,22 @@ INFUSION_BLOCKED[unitLock:UnitLockStateT][alarm:AlarmStateT] =
         silence_alarm -> INFUSION_BLOCKED[unitLock][AlarmSilenced]
     |
     flow_unblocked -> INFUSION[unitLock][SystemCheckRequired]
+),
+
+//
+// Pressure checking
+//
+PRESSURE_CHECK[alarm:AlarmStateT] =
+(
+    primary_power_off -> BATTERY_MODE[AlarmActivated]
+    |
+    turn_off -> POWER_OFF
+    |
+    when (alarm == AlarmActivated)
+        sound_alarm -> PRESSURE_CHECK[alarm]
+    |
+    when (alarm == AlarmActivated)
+        silence_alarm -> PRESSURE_CHECK[AlarmSilenced]
+    |
+    pressure_is_ok -> INFUSION[UnitUnlocked][SystemCheckRequired]
 ).
-
-
