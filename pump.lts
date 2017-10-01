@@ -59,6 +59,11 @@ const UnitLocked   = 7  // the keypad of the pump is locked
 
 range UnitLockStateT = UnitUnlocked .. UnitLocked
 
+const SystemCheckRequired      = 8  // 
+const SystemCheckNotRequired   = 9  //
+
+range SystemCheckStateT = SystemCheckRequired .. SystemCheckNotRequired
+
 //=====================
 // Process Definitions
 //=====================
@@ -72,8 +77,26 @@ UNPLUGGED =
 
 POWER_OFF = 
 (
-    turn_on -> SETUP[ParamsNotSet][LineUnlocked]
+    turn_on -> SYSTEM_CHECK_ON_INITIALIZATION
 ),
+
+//
+// Performing system checks when the pump is plugged in.
+// In case of any errors display them.
+//
+SYSTEM_CHECK_ON_INITIALIZATION = (
+	system_check_success -> SETUP[ParamsNotSet][LineUnlocked]
+	|
+	system_check_fail -> DISPLAY_ERROR
+),
+
+DISPLAY_ERROR = (
+	display_error -> DISPLAY_ERROR
+	|
+	switch_off -> POWER_OFF
+),
+
+
 
 //
 // Pump in setup mode:
@@ -99,7 +122,7 @@ SETUP[params:ParamsStateT][lineLock:LineLockStateT] =
         connect_set -> purge_air -> lock_line -> SETUP[params][LineLocked]
     |
     when (lineLock == LineLocked)
-        confirm_settings -> INFUSION[UnitUnlocked]
+        confirm_settings -> INFUSION[UnitUnlocked][SystemCheckRequired]
     |
     when (lineLock == LineLocked)
         erase_and_unlock_line -> SETUP[params][LineUnlocked]
@@ -110,25 +133,43 @@ SETUP[params:ParamsStateT][lineLock:LineLockStateT] =
 // - Always be able to turn the unit off, even if locked
 // - Allow the user to lock/unlock the unit
 // - Errors could occur with the pump (e.g., line became pinched or plugged)
+// - Do system check if it is required
 //
-INFUSION[unitLock:UnitLockStateT] =
+INFUSION[unitLock:UnitLockStateT][systemCheck:SystemCheckStateT] =
 (
-    unplug -> UNPLUGGED
+	unplug -> UNPLUGGED
+	|
+	when (systemCheck == SystemCheckRequired)
+		do_system_check -> PERIODIC_SYSTEM_CHECK[unitLock]
+	|
+    when (systemCheck == SystemCheckNotRequired)
+		turn_off -> POWER_OFF
     |
-    turn_off -> POWER_OFF
+	when (unitLock == UnitUnlocked & systemCheck == SystemCheckNotRequired)
+    	change_settings -> SETUP[ParamsSet][LineLocked]
     |
-    when (unitLock == UnitUnlocked)
-        change_settings -> SETUP[ParamsSet][LineLocked]
+    when (unitLock == UnitUnlocked & systemCheck == SystemCheckNotRequired)
+      	lock_unit -> INFUSION[UnitLocked][SystemCheckRequired]
     |
-    when (unitLock == UnitUnlocked)
-        lock_unit -> INFUSION[UnitLocked]
+    when (unitLock == UnitLocked & systemCheck == SystemCheckNotRequired)
+       	unlock_unit -> INFUSION[UnitUnlocked][SystemCheckRequired]
     |
-    when (unitLock == UnitLocked)
-        unlock_unit -> INFUSION[UnitUnlocked]
+	when (systemCheck == SystemCheckNotRequired)
+    	dispense_main_med_flow -> INFUSION[unitLock][SystemCheckRequired]
     |
-    dispense_main_med_flow -> INFUSION[unitLock]
-    |
-    flow_blocked -> sound_alarm -> INFUSION_BLOCKED[unitLock][AlarmActivated]
+	when (systemCheck == SystemCheckNotRequired)
+    	flow_blocked -> sound_alarm -> INFUSION_BLOCKED[unitLock][AlarmActivated]
+	
+),
+
+//
+// Periodic system checks
+//
+PERIODIC_SYSTEM_CHECK[unitLock:UnitLockStateT] =
+(
+	system_check_success -> INFUSION[unitLock][SystemCheckNotRequired]
+	|
+	system_check_fail -> DISPLAY_ERROR
 ),
 
 //
@@ -146,7 +187,7 @@ INFUSION_BLOCKED[unitLock:UnitLockStateT][alarm:AlarmStateT] =
     when (alarm == AlarmActivated)
         silence_alarm -> INFUSION_BLOCKED[unitLock][AlarmSilenced]
     |
-    flow_unblocked -> INFUSION[unitLock]
+    flow_unblocked -> INFUSION[unitLock][SystemCheckRequired]
 ).
 
 
