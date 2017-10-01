@@ -18,9 +18,9 @@
 menu UserControlMenu = {
     change_settings, clear_rate, confirm_settings, connect_set, set_time,
     dispense_main_med_flow, enter_value, erase_and_unlock_line,
-    flow_unblocked, sound_alarm, lock_unit, plug_in, press_cancel, 
-    press_set, set_rate, silence_alarm, turn_off, unlock_unit, unplug, time_off,
-    flow_blocked
+    flow_unblocked, sound_alarm, lock_unit, press_cancel, 
+    press_set, set_rate, silence_alarm, turn_off, unlock_unit, primary_power_off,
+    flow_blocked, setup_mode
 }
 
 //======================
@@ -68,11 +68,18 @@ range SystemCheckStateT = SystemCheckRequired .. SystemCheckNotRequired
 // Process Definitions
 //=====================
 
-PUMP = UNPLUGGED,
+PUMP = POWER_OFF,
 
-UNPLUGGED =
-(
-    plug_in -> POWER_OFF
+// Pump goes to battery mode if the primary power is off - unplugged or 
+// electricity in the circuit unexpectedly disappears.
+BATTERY_MODE[alarm:AlarmStateT] = (
+    turn_off -> POWER_OFF
+	|
+    when (alarm == AlarmActivated)
+        sound_alarm -> BATTERY_MODE[alarm]
+    |
+    when (alarm == AlarmActivated)
+        silence_alarm -> BATTERY_MODE[AlarmSilenced]
 ),
 
 POWER_OFF = 
@@ -93,13 +100,13 @@ SYSTEM_CHECK_ON_INITIALIZATION = (
 DISPLAY_ERROR = (
 	display_error -> DISPLAY_ERROR
 	|
-	switch_off -> POWER_OFF
+	turn_off -> POWER_OFF
 ),
 
 // In order to start setting parameters a user should make some explicit action, 
 // for example, pushing a certain button.
 SETUP_MODE = (
-    unplug -> UNPLUGGED
+    primary_power_off -> BATTERY_MODE[AlarmActivated]
     |
     turn_off -> POWER_OFF
     |
@@ -113,7 +120,7 @@ SETUP_MODE = (
 //
 SETUP[params:ParamsStateT][lineLock:LineLockStateT] = 
 (
-    unplug -> UNPLUGGED
+    primary_power_off -> BATTERY_MODE[AlarmActivated]
     |
     turn_off -> POWER_OFF
     |
@@ -145,7 +152,7 @@ SETUP[params:ParamsStateT][lineLock:LineLockStateT] =
 //
 INFUSION[unitLock:UnitLockStateT][systemCheck:SystemCheckStateT] =
 (
-	unplug -> UNPLUGGED
+	primary_power_off -> BATTERY_MODE[AlarmActivated]
 	|
     time_off -> POWER_OFF
     |
@@ -187,7 +194,7 @@ PERIODIC_SYSTEM_CHECK[unitLock:UnitLockStateT] =
 //
 INFUSION_BLOCKED[unitLock:UnitLockStateT][alarm:AlarmStateT] =
 (
-    unplug -> UNPLUGGED
+    primary_power_off -> BATTERY_MODE[AlarmActivated]
     |
     turn_off -> POWER_OFF
     |
