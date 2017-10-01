@@ -18,7 +18,7 @@
 menu UserControlMenu = {
     change_settings, clear_rate, confirm_settings, connect_set, set_time,
     dispense_main_med_flow, enter_value, erase_and_unlock_line,
-    flow_unblocked, sound_alarm, lock_unit, press_cancel, 
+    flow_unblocked, sound_alarm, lock_unit, press_cancel, time_off,
     press_set, set_rate, silence_alarm, turn_off, unlock_unit, primary_power_off,
     flow_blocked, setup_mode
 }
