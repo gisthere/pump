@@ -85,7 +85,7 @@ POWER_OFF =
 // In case of any errors display them.
 //
 SYSTEM_CHECK_ON_INITIALIZATION = (
-	system_check_success -> SETUP[ParamsNotSet][LineUnlocked]
+	system_check_success -> SETUP_MODE
 	|
 	system_check_fail -> DISPLAY_ERROR
 ),
@@ -96,7 +96,15 @@ DISPLAY_ERROR = (
 	switch_off -> POWER_OFF
 ),
 
-
+// In order to start setting parameters a user should make some explicit action, 
+// for example, pushing a certain button.
+SETUP_MODE = (
+    unplug -> UNPLUGGED
+    |
+    turn_off -> POWER_OFF
+    |
+    setup_mode -> SETUP[ParamsNotSet][LineUnlocked]
+),
 
 //
 // Pump in setup mode:
